@@ -1,0 +1,764 @@
+// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Rename Object( オブジェクト改名 )
+//
+// Date : 2017.10.3
+// Ver : v1.0.0
+// Tested OS : Windows10 Pro
+// Tested Maya : Maya2013, Maya2014, Maya2015, Maya2016, Maya2017
+// Character Set : Shift_JIS
+// Copyright(c) 2013-2017 KohFlag
+// http://www7b.biglobe.ne.jp/~kohflag00/
+// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+/* オブジェクト名から一部文字列の検索と削除を行う関数 */
+global proc DeleteObjName()
+{
+    /* Primitive作成の為のGUIウィンドウ用の変数 */
+    /* GUIウィンドウの内容をこの関数内でも使う為に必要なので、グローバル変数として宣言する。 */
+    /* ちなみに、この宣言が無い場合、プログラム実行時にエラーになる。 */
+    global string $MainWindow = "";
+
+   /* 指定文字列削除の処理で使う変数の宣言 */
+   /* 選択したオブジェクト名の文字列代入用 */
+   string $p = "";
+   
+   /* オブジェクト名の削除の際の検索文字列の読み込み用 */
+   string $dStr = "";
+   
+   /* 処理状況のコメント文字列を格納する変数 */
+   /* こちらは、処理後にGUIウィンドウのテキストフィールドの内容を変更する為に用いる。 */
+   string $sts0 = "";
+   string $sts1 = "";
+   string $sts2 = ""; 
+   string $sts3 = "";
+   string $sts4 = "";
+
+   /* Primitive名が重複している（既に他のPrimitiveで使われている）場合の確認メッセージ処理で使う変数の宣言 */
+   /* 変数は、確認メッセージウィンドウの表示内容用2つに、確認メッセージの返事用の1つ */
+   /* 他の関数でも内容の参照をしたいので、グローバル変数として宣言 */
+   string $cMessage1 = "";
+   string $cMessage2 = "";
+   string $Reply = "";
+   
+   /* 選択されたオブジェクトの数カウント用 */
+   int $objcount = 0;
+   
+   /* 名前が変更されたオブジェクトの数カウント用 */
+   int $dcount = 0;
+   
+   /* オブジェクト名変更(指定文字列の削除)後に文字列が正しいかチェックする為の変数。正しいかの判定基準は次の1～3の通り */
+   /* 1．文字列がnull(一文字も無い)で無い事。 */
+   /* 2．文字列の先頭は英字である事。 */
+   /* 3.文字列が英字、数字、アンダーバーのみで構成されている事。 */
+   string $checkString = "";
+   
+   /* 変更しなかったオブジェクト名を格納する変数 */
+   string $NotchangeName = "";
+   string $NCNList[] = {};
+   
+   /* テキストフィールドの内容を読み込み。 */
+   /* -queryフラグを用いる事で、その後に繋げるフラグ(今は、 -text フラグ部分)のテキストフィールドの内容を変更する処理が可能。 */
+   /* -queryフラグは、 -q と省略して記述してもOK（同じ意味）。 */
+   /* ここでは、オブジェクト名削除の際、検索する文字列について、GUIウィンドウの設定を読み込む。 */
+   $dStr = `textFieldGrp -query -text DeleteTextField`;
+   
+   /* 現在選択されている全てのオブジェクトの名前を文字型配列に読み込む。 */
+   string $obj[] = `ls -sl`;
+   
+   /* オブジェクトが1つ以上選択されているかをチェック */
+   if(size($obj)==0){
+   
+      /* オブジェクトが一つも選択されていない場合の確認メッセージウィンドウを表示 */
+      $cMessage1 = "Object is not selected even one.";
+      $cMessage2 = "Select the object, and re-run the process by press the \"Rename by string delete\" button, please.";
+      confirmDialog -title "Warning!" -message ($cMessage1 + "\n" + $cMessage2) -button "OK" -defaultButton "OK" -cancelButton "OK" -dismissString "OK" -parent ($MainWindow) -icon warning;
+      
+      $sts1 = "The process of object renaming was not done.";
+      $sts2 = "Object is not selected even one.";
+      $sts3 = "Select the object, and re-run the process by press the \"Rename by string delete\" button, please.";
+      $sts4 = "";
+      $NotchangeName = "";
+   }
+   else if(size($obj)>=1){
+   
+      /* テキストフィールドから読み込んだ文字列が空白でないならif文内、空白ならelse文内の処理を実行 */
+      if( $dStr != "" ){
+         
+         /* 名前変更されなかったオブジェクトの名前を格納する変数を設定。 */
+         $NotchangeName = "";
+         
+         /* 選択されたオブジェクト名変更（指定文字列の検索と削除を行う）処理 */
+         /* 現在選択されている全オブジェクトから、一つずつ名前を取り出し、文字型変数に代入した物に対して行う。 */
+         for($p in $obj){
+            /* 選択されたオブジェクトの数をカウント */
+            $objcount += 1;
+         
+            /* オブジェクト名の中に削除文字列があるかチェック。削除文字列があれば削除を行う。 */
+            if( `gmatch $p ($dStr + "*")` || `gmatch $p ("*" + $dStr + "*")` ){
+            
+               /* 名前変更後の文字列が正しいかチェックし、正しい場合のみ、実際に名前変更処理を実行する。正しいかの判定条件は次の1～3通り。 */
+               /* 1．文字列がnull(一文字も無い)で無い事。 */
+               /* 2．文字列の先頭は英字である事。 */
+               /* 3.文字列が英字、数字、アンダーバーのみで構成されている事。 */
+               $checkString = $p;
+               if( isValidObjectName( `substitute $dStr $checkString ""` ) ){
+                  rename $p `substitute $dStr $p ""`;
+                  /* 文字列の変更が行われる度に回数をカウント */
+                  $dcount += 1;
+               }
+               else{
+                  /* 名前変更を行わないオブジェクトの名前文字列を変数に代入 */
+                  /* 名前変更を行わないオブジェクトが見つかる度、空白文字を間に挿入して変数に加えていく。 */
+                  $NotchangeName = $NotchangeName + "\n" + $p;
+               }
+            }
+            else{
+                  /* 名前変更を行わないオブジェクトの名前文字列を変数に代入 */
+                  /* 名前変更を行わないオブジェクトが見つかる度、空白文字を間に挿入して変数に加えていく。 */
+                  $NotchangeName = $NotchangeName + "\n" + $p;
+            }
+         }
+      }
+      else{
+         $dcount = 0;
+      }
+      
+      /* 名前変更されたオブジェクトの数をチェック */
+      if($dcount<=0){
+      
+         /* 名前変更されたオブジェクトの数がゼロの(1つも名前変更されなかった)場合の確認メッセージウィンドウを表示 */
+         $cMessage1 = "The process of object renaming was not done.";
+         $cMessage2 = "Either (A) or (B) of the following is assumed to be the cause which was not renamed." + "\n" + 
+         "(A) Search string did not matched even once." + "\n" + 
+         "(B) Search string matched, but string name of the object after the rename was invalid." + "\n" + "\n" + 
+         "※ If the conditions for the next 1-3 does not hold, object name string is determined to be invalid." + "\n" + 
+         "1. String must not be null (not being also entered character)." + "\n" + 
+         "2. The beginning of the string is valid only alphabetic character." + "\n" + 
+         "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore." + "\n" + 
+         "Re-enter the string, and re-run the process by press the \"Rename by string delete\" button, please.";
+         confirmDialog -title "Infomation" -message ($cMessage1 + "\n" + $cMessage2) -button "OK" -defaultButton "OK" -cancelButton "OK" -dismissString "OK" -parent ($MainWindow) -icon information;
+         
+         /* 名前変更されたオブジェクトの数がゼロの(1つも名前変更されなかった)場合のGUIウィンドウへの結果表示用文字列を設定 */
+         $sts1 = "The process of object renaming was not done.";
+         $sts2 = "Either (A) or (B) of the following is assumed to be the cause which was not renamed." + "\n" + 
+         "(A) Search string did not matched even once." + "\n" + 
+         "(B) Search string matched, but string name of the object after the rename was invalid." + "\n" + "\n" + 
+         "※ If the conditions for the next 1-3 does not hold, object name string is determined to be invalid." + "\n" + 
+         "1. String must not be null (not being also entered character)." + "\n" + 
+         "2. The beginning of the string is valid only alphabetic character." + "\n" + 
+         "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore.";
+         $sts3 = "Re-enter the string, and re-run the process by press the \"Rename by string delete\" button, please.";
+         $sts4 = "";    
+      }
+      else if($dcount>0){
+      
+         if($objcount == $dcount){
+         
+            /* 選択された全てのオブジェクトの名前が変更された場合の確認メッセージウィンドウを表示 */
+            $cMessage1 = "The process of object renaming is succeed!";
+            $cMessage2 = "All objects which selected were renamed." + "\n" + 
+            "Number of object which was selected: " + $objcount + "\n" + "Number of object which was renamed: " + $dcount;
+            confirmDialog -title "Infomation" -message ($cMessage1 + "\n" + $cMessage2) -button "OK" -defaultButton "OK" -cancelButton "OK" -dismissString "OK" -parent ($MainWindow) -icon information;
+            
+            /* 選択された全てのオブジェクトの名前が変更された場合のGUIウィンドウへの結果表示用文字列を設定 */
+            $sts1 = "The process of object renaming is succeed!";
+            $sts2 = "All objects which selected were renamed.";
+            $sts3 = "Number of object which was selected: " + $objcount + "\n" + "Number of object which was renamed: " + $dcount;
+            $sts4 = "";
+         }
+         else{
+         
+            /* 選択されたオブジェクトの中で、一部のオブジェクトのみ名前変更された（検索文字列に一致した名前があった為）場合の確認メッセージウィンドウを表示 */
+            $cMessage1 = "The process of object renaming is succeed!";
+            $cMessage2 = "But, there is some object which was not renamed." + "\n" + 
+            "Either (A) or (B) of the following is assumed to be the cause which was not renamed." + "\n" + 
+            "(A) Search string did not matched." + "\n" + 
+            "(B) Search string matched, but string name of the object after the rename was invalid." + "\n" + "\n" + 
+            "※ If the conditions for the next 1-3 does not hold, object name string is determined to be invalid." + "\n" + 
+            "1. String must not be null (not being also entered character)." + "\n" + 
+            "2. The beginning of the string is valid only alphabetic character." + "\n" + 
+            "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore." + "\n" + 
+            "Number of object which was selected: " + $objcount + "\n" + "Number of object which was renamed: " + $dcount;
+            confirmDialog -title "Infomation" -message ($cMessage1 + "\n" + $cMessage2) -button "OK" -defaultButton "OK" -cancelButton "OK" -dismissString "OK" -parent ($MainWindow) -icon information;
+            
+            /* 選択されたオブジェクトの中で、一部のオブジェクトのみ名前変更された（検索文字列に一致した名前があった為）場合のGUIウィンドウへの結果表示用文字列を設定 */
+            $sts1 = "The process of object renaming is succeed!";
+            $sts2 = "But, there is some object which was not renamed." + "\n" + 
+            "Either (A) or (B) of the following is assumed to be the cause which was not renamed." + "\n" + 
+            "(A) Search string did not matched." + "\n" + 
+            "(B) Search string matched, but string name of the object after the rename was invalid." + "\n" + "\n" + 
+            "※ If the conditions for the next 1-3 does not hold, object name string is determined to be invalid." + "\n" + 
+            "1. String must not be null (not being also entered character)." + "\n" + 
+            "2. The beginning of the string is valid only alphabetic character." + "\n" + 
+            "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore.";
+            $sts3 = "Number of object which was selected: " + $objcount + "\nNumber of object which was renamed: " + $dcount;
+            /* 名前変更されなかったオブジェクトがあった場合のメッセージを変数に代入。 */
+            $sts4 = "List of object which not changed name:";
+         }
+      }
+   }
+
+   /* 実行結果表示用スクロールフィールドの現在の内容を読み取る。 */
+   $sts0 = `scrollField -query -text DeleteResultScrollField` + "\n";
+   
+   /* 実行結果表示用スクロールフィールドの内容を変更。 */
+   /* 現在の内容に対して、新たに実行した処理の結果を追加する形で変更を行う。 */
+   /* -e フラグを用いる事で、その後に繋げるフラグ(今は、 -text フラグ部分)の内容を変更する処理が可能。 */
+   /* また、 -e フラグは、 -editと記述してもOK（同じ意味）。 */
+   if( $sts4 != "" ){
+      /* 処理結果をGUIウィンドウのScrollFieldに表示 */
+      scrollField -edit -text ($sts0 + "// Result: " + $sts1 + " //\n" + $sts2 + "\n" + $sts3 + "\n" + $sts4 + $NotchangeName + "\n" ) DeleteResultScrollField;
+      
+      /* 処理結果をScriptEditorに表示(デバッグ確認用) */
+      print("\n// Result: " + $sts1 + " //\n" + $sts2 + "\n" + $sts3 + "\n" );
+      
+      /* 名前変更が行われなかったオブジェクトをリスト表示する為、まとめて置いた変数から配列に代入 */
+      $NCNList = stringToStringArray($NotchangeName,"\n");
+      
+      /* 名前変更が行われなかったオブジェクトをスクリプトエディタにリスト表示。配列変数を使用。 */
+      print($sts4 + "\n");
+      print($NCNList);
+   }
+   else{
+
+      /* 処理結果をGUIウィンドウのScrollFieldに表示 */
+      scrollField -edit -text ($sts0 + "// Result: " + $sts1 + " //\n" + $sts2 + "\n" + $sts3 + "\n" ) DeleteResultScrollField;
+      
+      /* 処理結果をScriptEditorに表示(デバッグ確認用) */
+      print("\n// Result: " + $sts1 + " //\n" + $sts2 + "\n" + $sts3 + "\n" );
+   }
+   
+   /* GUIウィンドウの表示をリフレッシュ(再描画)する。 */
+   /* テキストフィールドの表示変更の処理をしたので、GUIウィンドウも再描画する必要が生じた。 */
+   refresh;
+}
+
+/* オブジェクト名の一部もしくはオブジェクト名全部を変更する関数 */
+global proc SubstituteObjName()
+{
+    /* Primitive作成の為のGUIウィンドウ用の変数 */
+    /* GUIウィンドウの内容をこの関数内でも使う為に必要なので、グローバル変数として宣言する。 */
+    /* ちなみに、この宣言が無い場合、プログラム実行時にエラーになる。 */
+    global string $MainWindow = "";
+   
+   /* 指定文字列変更の処理で使う変数の宣言 */
+   /* 選択したオブジェクト名の文字列代入用 */
+   string $p = "";
+   
+   /* 変更前にチェックを行う用の変数 */
+   string $checkString = "";
+   
+   /* オブジェクト名の変更対象選択のラジオボタンの内容読み込み用 */
+   int $selected = 0;
+   
+   /* オブジェクト名の変更対象のフラグ設定用 */
+   int $sStrflag = 0;
+   
+   /* オブジェクト名変更の際の検索文字列と変更文字列の読み込み用 */
+   string $cbStr = "";
+   string $caStr = "";
+   
+   /* 文字列が正しくない場合に立てるフラグ用の変数 */
+   int $StrInvFlag = 0;
+   $StrInvFlag = 0;
+   
+   /* ゼロ文字列用 */
+   /* オブジェクト名の文字列全てが変更対象の場合、変更後の文字列の後ろに付加する。 */
+   string $zeroStrIn = "";
+   string $zeroStr = "";
+   string $zero = "0";
+   
+   int $zeroNum = 0;
+   int $zNumc = 0;
+   int $ix = 0;
+   $zNumc = 0;
+   $zNumc = 0;
+   $ix = 0;
+   
+   /* Primitive名が重複している（既に他のPrimitiveで使われている）場合の確認メッセージ処理で使う変数の宣言 */
+   /* 変数は、確認メッセージウィンドウの表示内容用2つに、確認メッセージの返事用の1つ */
+   /* 他の関数でも内容の参照をしたいので、グローバル変数として宣言 */
+   string $cMessage1 = "";
+   string $cMessage2 = "";
+
+   /* 処理状況のコメント文字列を格納する変数 */
+   /* こちらは、処理後にGUIウィンドウのテキストフィールドの内容を変更する為に用いる。 */
+   string $sts0 = "";
+   string $sts1 = "";
+   string $sts2 = ""; 
+   string $sts3 = "";
+   string $sts4 = "";
+   
+   /* 選択されたオブジェクトの数カウント用 */
+   int $objcount = 0;
+   $objcount = 0;
+   
+   /* 名前が変更されたオブジェクトの数カウント用 */
+   int $ccount = 0;
+   $ccount = 0;
+   
+   /* 変更しなかったオブジェクト名を格納する変数 */
+   string $NotchangeName = "";
+   string $NCNList[] = {};
+   
+   /* GUIウィンドウのラジオボタン用の変数の宣言 */
+   /* この変数はGUIウィンドウでも宣言されているが、その内容をこの関数内でも参照する為に、グローバル変数での宣言が必要になる。 */
+   /* グローバル変数での宣言には、 最初に"global"という文字列を付加する。 */
+   /* "grobal"が付加されない場合は、ローカル変数の宣言となり、現在の関数内でのみ内容を参照可能な変数となる。 */
+   global string $radioBtnGrp1 = "";
+   
+   /* GUIウインドウのラジオボタンの選択個所読み込み */
+   $selected = `radioButtonGrp -query -select $radioBtnGrp1`;
+   
+   /* ラジオボタンの選択個所に応じて、オブジェクト名変更方法を分岐させる。 */
+   if($selected == 1){
+       /* オブジェクト名全部が変更対象であるというフラグを立てる。 */
+       $sStrflag = 0;
+   }
+   else if($selected == 2){
+       /* オブジェクト名の一部が変更対象であるというフラグを立てる。 */
+       $sStrflag = 1;
+   }
+   
+   /* テキストフィールドの内容を読み込み。 */
+   /* -queryフラグを用いる事で、その後に繋げるフラグ(今は、 -text フラグ部分)のテキストフィールドの内容を変更する処理が可能。 */
+   /* -queryフラグは、 -q と省略して記述してもOK（同じ意味）。 */
+   /* 検索文字列を読み込むかどうかの判定 */
+   /* オブジェクト名の一部が変更対象の場合、検索文字列が必要の為、if文内の処理を実行。 */
+   /* オブジェクト名全部が変更対象の場合、検索文字列は不要の為、else文内の処理を実行。 */
+   if($sStrflag==1){
+     /* オブジェクト名変更の際、検索する文字列の設定をGUIウィンドウから読み込む。 */
+     $cbStr = `textFieldGrp -query -text SubstituteBeforeTextField`;
+   }
+   else{
+     /* オブジェクト名全部が変更対象の場合、検索文字列は不要だが、仮の文字列を代入しておく。 */
+     /* この後文字列が正しいかチェックされるので、そこでの対応の為。 */
+     $cbStr = "no_use";
+   }
+   /* オブジェクト名変更の際、変更先の文字列の設定をGUIウィンドウから読み込む。 */
+   $caStr = `textFieldGrp -query -text SubstituteAfterTextField`;
+   
+   /* 現在選択されている全てのオブジェクトの名前を文字型配列に読み込む。 */
+   string $obj[] = `ls -sl`;
+   
+   /* オブジェクトが1つ以上選択されているかをチェック。 */
+   if(size($obj)==0){
+   
+      /* オブジェクトが一つも選択されていない場合の確認メッセージウィンドウを表示 */
+      $cMessage1 = "Object is not selected even one.";
+      $cMessage2 = "Select the object, and re-run the process by press the \"Rename by string substitute\" button, please.";
+      confirmDialog -title "Warning!" -message ($cMessage1 + "\n" + $cMessage2) -button "OK" -defaultButton "OK" -cancelButton "OK" -dismissString "OK" -parent ($MainWindow) -icon warning;
+      
+      /* オブジェクトが一つも選択されていない場合ののGUIウィンドウへの結果表示用文字列を設定  */
+      $sts1 = "The process of object renaming was not done.";
+      $sts2 = "Object is not selected even one.";
+      $sts3 = "Select the object, and re-run the process by press the \"Rename by string substitute\" button, please.";
+      $sts4 = "";
+      $NotchangeName = "";
+   }
+   else if(size($obj)>=1){
+   
+      /* 作成するオブジェクトの名前文字列に付加する番号のゼロの数を決める。 */
+      /* ゼロの数は、"作成するオブジェクトの総数の桁数(10進数で)"とする。 */
+      /* 最小でも1個はゼロを付加する様にする。 */
+      $zeroNum = trunc(log10(size($obj))) + 1;
+      
+      for($ix=0;$ix<$zeroNum;$ix++){
+         /* 名前変更後のオブジェクト名に付加するゼロの文字列の初期内容を設定 */
+         $zeroStrIn += $zero;
+      }
+      
+      /* ゼロの文字列の初期内容を、ゼロの文字列(変動用)の変数に代入。 */
+      /* ゼロの文字列(変動用)はこの後、オブジェクト名変更後の文字列に付加する為に使う。 */
+      $zeroStr = $zeroStrIn;
+      
+      /* ゼロの文字列(変動用)から、ゼロを1文字取り除く為の条件を決める変数を設定 */
+      /* ゼロを1文字取り除く条件は、オブジェクト名変更回数が、10のn乗以上になった時とする。 */
+      /* この場合のnに相当する変数として、$zNumcを次の様に設定する。 */
+      /* 最初は10の1乗、すなわち10以上になった時、ゼロの文字列から1文字だけゼロが取り除かれる事になる。 */
+      /* 取り除いた時点で、$zNumcの値には1が加算され、2になる。 */
+      /* これにより次回のゼロ1文字が取り除かれる条件は、10の2乗=100以上になった時となる。 */
+      /* この様に$zNumcの値が増えながら、処理が行われる。 */
+      $zNumc = 1;
+      
+      /* オブジェクト名変更処理 */
+      /* 現在選択されている全オブジェクトから、一つずつ名前を取り出し、文字型変数に代入した物に対して行う。 */
+      for($p in $obj){
+      
+         /* 選択されたオブジェクトの数をカウント */
+         $objcount += 1;
+         
+         /* オブジェクト名の変更対象をチェック */
+         /* 変更対象がオブジェクト名の一部の場合、if文内の処理を実行。 */
+         /* 変更対象がオブジェクト名全部の場合、else文内の処理を実行。 */
+         if($sStrflag==1){
+         
+            /* オブジェクト名の中に検索文字列があるかチェック。検索文字列があれば変更を行う。 */
+            if( `gmatch $p ($cbStr + "*")` || `gmatch $p ("*" + $cbStr + "*")` ){
+            
+               /* 名前変更後の文字列が正しいかチェックし、正しい場合のみ、実際に名前変更処理を実行する。正しいかの判定条件は次の1～3通り。 */
+               /* 1．文字列がnull(一文字も無い)で無い事。 */
+               /* 2．文字列の先頭は英字である事。 */
+               /* 3.文字列が英字、数字、アンダーバーのみで構成されている事。 */
+               $checkString = $p;
+               if( isValidObjectName( `substitute $cbStr $checkString $caStr` ) ){
+               
+                  /* オブジェクト名の文字列の中で、検索文字列に一致した部分を変更する。 */
+                  rename $p `substitute $cbStr $p $caStr`;
+                  
+                  /* 文字列の変更が行われる度に回数をカウント */
+                  $ccount += 1;
+               }
+               else{
+               
+                  /* 名前変更を行わないオブジェクトの名前文字列を変数に代入 */
+                  /* 名前変更を行わないオブジェクトが見つかる度、空白文字を間に挿入して変数に加えていく。 */
+                  $NotchangeName = $NotchangeName + "\n" + $p;
+               }
+            }
+            else{
+            
+               /* 名前変更を行わないオブジェクトの名前文字列を変数に代入 */
+               /* 名前変更を行わないオブジェクトが見つかる度、空白文字を間に挿入して変数に加えていく。 */
+               $NotchangeName = $NotchangeName + "\n" + $p;
+            }
+         }
+         else{
+            
+            /* テキストフィールドから読み込んた文字列のチェック。 */
+            /* 文字列が正しく入力されているかいないかの判定で処理を分ける。 */
+            /* 正しいと判定する条件は次の1～3が全て成立する場合のみ。成立しない場合は変更処理は実行しない。 */
+            /* 1．文字列がnull(一文字も入力されていない)で無い事。 */
+            /* 2．文字列の先頭は英字である事。 */
+            /* 3.文字列が英字、数字、アンダーバーのみで構成されている事。 */
+            if((isValidObjectName($caStr)==1)){
+            
+               /* 名前変更後のオブジェクト名に付加するゼロの文字列の内容を設定 */
+               /* 初期設定の内容を使い、オブジェクト名の変更が行われた回数が10のn乗を超える度に、ゼロを1文字ずつゼロの文字列から取り除く。 */
+               /* オブジェクト名変更回数が10のn乗以上になる度、if文内の処理を実行。 */
+               /* オブジェクト名に付加される番号の桁数を揃える為の処理。 */
+               if(($ccount+1)>=(pow(10,$zNumc))){
+                  /* ゼロの文字列から、先頭のゼロ1文字取り除く。 */
+                  /* ^0と記述する事で、先頭のゼロ1文字だけ一致したら取り除く様に処理される。 */
+                  $zeroStr = `substitute "^0" $zeroStr ""`;
+                  /* 10の乗数の加算処理 */
+                  /* この処理により、次回のゼロの文字列からゼロ1文字が取り除かれる条件の数(オブジェクト名変更回数が)、乗数加算前の10倍になる。 */
+                  /* オブジェクト名変更回数が、 10、100、1000、10000...という様な値以上になった時点で、ゼロの文字列変更処理を行わせる。 */
+                  $zNumc += 1;
+               }
+               
+               /* オブジェクト名の文字列全部を変更する。 */
+               /* 但し、変更後の文字列には後ろに番号を付加する。 */
+               /* 今はオブジェクトが複数選択されていると、 変更後は全て同じ名前になるので、識別の為番号を付加する。 */
+               /* ちなみに、この番号を付加する処理は、指定しない場合はMayaが自動で付加してくれる。 */
+               rename $p `substitute $p $p ($caStr + "_" + $zeroStr + ($ccount+1))`;
+               
+               /* 文字列の変更が行われる度に回数をカウント */
+               $ccount += 1;
+            }
+            else{
+            
+               /* GUIウィンドウに入力された文字列が正しくない場合の確認メッセージウィンドウを表示 */
+               $cMessage1 = "String you entered is invalid.";
+               $cMessage2 = "Re-enter the string, and re-run the process by press the \"Rename by string substitute\" button, please." + "\n" + 
+               "※ Precautions for enter string." + "\n" + "1. String must not be null (not being also entered character)." + "\n" + 
+               "2. The beginning of the string is valid only alphabetic character." + "\n" + 
+               "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore.";
+               confirmDialog -title "Warning!" -message ($cMessage1 + "\n" + $cMessage2) -button "OK" -defaultButton "OK" -cancelButton "OK" -dismissString "OK" -parent ($MainWindow) -icon warning;
+               
+               /* GUIウィンドウに入力された文字列が正しくない場合のGUIウィンドウへの結果表示用文字列を設定 */
+               $sts1 = "The process of object renaming was not done.";
+               $sts2 = "String you entered is invalid." + "\n" + "Re-enter the string, and re-run the process by press the \"Rename by string substitute\" button, please.";
+               $sts3 = "※ Precautions for enter string." + "\n" + "1. String must not be null (not being also entered character)." + "\n" + 
+               "2. The beginning of the string is valid only alphabetic character." + "\n" + 
+               "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore.";
+               $sts4 = "";
+               $NotchangeName = "";
+               
+               /* 文字列が正しくないというフラグを立てる。 */
+               $StrInvFlag = 1;
+            }
+         }
+         
+         /* 文字列が正しくないというフラグが立っていたら、繰り返し処理から抜ける */
+         if($StrInvFlag == 1){
+            break;
+         }
+      }
+      
+      /* 文字列が正しくないというフラグが立っていない場合のみ、if文内を実行。立っている場合は何もしない。 */
+      if( $StrInvFlag != 1 ){
+         /* 名前変更されたオブジェクトの数をチェック */
+         if($ccount<=0){
+
+            /* 名前変更されたオブジェクトの数がゼロの(1つも名前変更されなかった)場合の確認メッセージウィンドウを表示 */
+            $cMessage1 = "The process of object renaming was not done.";
+            $cMessage2 = "Either (A) or (B) of the following is assumed to be the cause which was not renamed." + "\n" + 
+            "(A) Search string did not matched even once." + "\n" + 
+            "(B) Search string matched, but string name of the object after the rename was invalid." + "\n" + "\n" +  
+            "※ If the conditions for the next 1-3 does not hold, object name string is determined to be invalid." + "\n" + 
+            "1. String must not be null (not being also entered character)." + "\n" + 
+            "2. The beginning of the string is valid only alphabetic character." + "\n" + 
+            "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore." + "\n" + 
+            "Re-enter the string, and re-run the process by press the \"Rename by string substitute\" button, please.";
+            confirmDialog -title "Infomation" -message ($cMessage1 + "\n" + $cMessage2) -button "OK" -defaultButton "OK" -cancelButton "OK" -dismissString "OK" -parent ($MainWindow) -icon information;
+            
+            /* 名前変更されたオブジェクトの数がゼロの(1つも名前変更されなかった)場合のGUIウィンドウへの結果表示用文字列を設定 */            
+            $sts1 = "The process of object renaming was not done.";
+            $sts2 = "Either (A) or (B) of the following is assumed to be the cause which was not renamed." + "\n" + 
+            "(A) Search string did not matched even once." + "\n" + 
+            "(B) Search string matched, but string name of the object after the rename was invalid." + "\n" + "\n" + 
+            "※ If the conditions for the next 1-3 does not hold, object name string is determined to be invalid." + "\n" + 
+            "1. String must not be null (not being also entered character)." + "\n" + 
+            "2. The beginning of the string is valid only alphabetic character." + "\n" + 
+            "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore.";
+            $sts3 = "Re-enter the string, and re-run the process by press the \"Rename by string substitute\" button, please.";
+            $sts4 = "";
+         }
+         else if($ccount>0){
+            if($objcount == $ccount){
+            
+               /* 選択された全てのオブジェクトの名前が変更された場合の確認メッセージウィンドウを表示 */
+               $cMessage1 = "The process of object renaming is succeed!";
+               $cMessage2 = "All objects which selected were renamed." + "\n" + 
+               "Number of object which was selected: " + $objcount + "\n" + "Number of object which was renamed: " + $ccount;
+               confirmDialog -title "Infomation" -message ($cMessage1 + "\n" + $cMessage2) -button "OK" -defaultButton "OK" -cancelButton "OK" -dismissString "OK" -parent ($MainWindow) -icon information;
+               
+               /* 選択された全てのオブジェクトの名前が変更された場合のGUIウィンドウへの結果表示用文字列を設定 */
+               $sts1 = "The process of object renaming is succeed!";
+               $sts2 = "All objects which selected were renamed.";
+               $sts3 = "Number of object which was selected: " + $objcount + "\n" + "Number of object which was renamed: " + $ccount;
+               $sts4 = "";
+            }
+            else{
+            
+               /* 選択されたオブジェクトの中で、一部のオブジェクトのみ名前変更された（検索文字列に一致した名前があった為）場合の確認メッセージウィンドウを表示 */
+               $cMessage1 = "The process of object renaming is succeed!";
+               $cMessage2 = "But, there is some object which was not renamed." + "\n" + 
+               "Either (A) or (B) of the following is assumed to be the cause which was not renamed." + "\n" + 
+               "(A) Search string did not matched." + "\n" + 
+               "(B) Search string matched, but string name of the object after the rename was invalid." + "\n" + "\n" + 
+               "※ If the conditions for the next 1-3 does not hold, object name string is determined to be invalid." + "\n" + 
+               "1. String must not be null (not being also entered character)." + "\n" + 
+               "2. The beginning of the string is valid only alphabetic character." + "\n" + 
+               "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore." + "\n" + 
+               "Number of object which was selected: " + $objcount + "\n" + "Number of object which was renamed: " + $ccount;
+               confirmDialog -title "Infomation" -message ($cMessage1 + "\n" + $cMessage2) -button "OK" -defaultButton "OK" -cancelButton "OK" -dismissString "OK" -parent ($MainWindow) -icon information;
+
+               /* 選択されたオブジェクトの中で、一部のオブジェクトのみ名前変更された（検索文字列に一致した名前があった為）場合のGUIウィンドウへの結果表示用文字列を設定 */               
+               $sts1 = "The process of object renaming is succeed!";
+               $sts2 = "But, there is some object which was not renamed." + "\n" + 
+               "Either (A) or (B) of the following is assumed to be the cause which was not renamed." + "\n" + 
+               "(A) Search string did not matched." + "\n" + 
+               "(B) Search string matched, but string name of the object after the rename was invalid." + "\n" + "\n" + 
+               "※ If the conditions for the next 1-3 does not hold, object name string is determined to be invalid." + "\n" + 
+               "1. String must not be null (not being also entered character)." + "\n" + 
+               "2. The beginning of the string is valid only alphabetic character." + "\n" + 
+               "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore." + "\n" + 
+               $sts3 = "Number of object which was selected: " + $objcount + "\nNumber of object which was renamed: " + $ccount;
+               /* 名前変更されなかったオブジェクトがあった場合のメッセージを変数に代入。 */
+               $sts4 = "List of object which not changed name:";
+            }
+         }
+      }
+   }
+   
+   /* 実行結果表示用スクロールフィールドの現在の内容を読み取る。 */
+   $sts0 = `scrollField -query -text SubstituteResultScrollField` + "\n";
+   
+   /* 実行結果表示用スクロールフィールドの内容を変更。 */
+   /* 現在の内容に対して、新たに実行した処理の結果を追加する形で変更を行う。 */
+   /* -e フラグを用いる事で、その後に繋げるフラグ(今は、 -text フラグ部分)の内容を変更する処理が可能。 */
+   /* また、 -e フラグは、 -editと記述してもOK（同じ意味）。 */
+   if( $sts4 != "" ){
+   
+      /* 処理結果をGUIウィンドウのScrollFieldに表示 */
+      scrollField -edit -text ($sts0 + "// Result: " + $sts1 + " //\n" + $sts2 + "\n" + $sts3 + "\n" + $sts4 + $NotchangeName + "\n" ) SubstituteResultScrollField;
+
+      /* 処理結果をScriptEditorに表示(デバッグ確認用) */
+      print("\n// Result: " + $sts1 + " //\n" + $sts2 + "\n" + $sts3 + "\n" );
+      
+      /* 名前変更が行われなかったオブジェクトをリスト表示する為、まとめて置いた変数から配列に代入 */
+      $NCNList = stringToStringArray($NotchangeName,"\n");
+      
+      /* 名前変更が行われなかったオブジェクトをスクリプトエディタにリスト表示。配列変数を使用。 */
+      print($sts4 + "\n");
+      print($NCNList);
+   }
+   else{
+   
+      /* 処理結果をGUIウィンドウのScrollFieldに表示 */
+      scrollField -edit -text ($sts0 + "// Result: " + $sts1 + " //\n" + $sts2 + "\n" + $sts3 + "\n" ) SubstituteResultScrollField;
+      
+      /* 処理結果をScriptEditorに表示(デバッグ確認用) */
+      print("\n// Result: " + $sts1 + " //\n" + $sts2 + "\n" + $sts3 + "\n" );
+   }
+   
+   /* GUIウィンドウの表示をリフレッシュ(再描画)する */
+   /* テキストフィールドの表示変更の処理をしたので、GUIウィンドウも再描画する必要が生じた。 */
+   refresh;
+   
+   /* 変更後のテキストフィールドの値をScriptEditorに表示(デバッグ確認用) */
+   print( "$zeroNum = " + $zeroNum + "\n" );
+   print( "$zeroStrIn = " + $zeroStrIn + "\n" );
+   print( "$zeroStr = " + $zeroStr + "\n" );
+}
+
+/* テキストフィールドのコントロール無効化関数 */
+/* オブジェクト名変更の設定で、変更対象がオブジェクト名の文字列全部の場合に実行される。 */
+global proc TextFieldInvalid(){
+   /* オブジェクト名の中から検索する一部文字列の入力テキストフィールドを無効化(入力不可、内容読み取り不可にする)。 */
+   textFieldGrp -e -enable false -editable false SubstituteBeforeTextField;
+   refresh;
+}
+
+/* テキストフィールドのコントロール有効化関数 */
+/* オブジェクト名変更の設定で、変更対象がオブジェクト名の文字列の一部の場合に実行される。 */
+global proc TextFieldValid(){
+   /* オブジェクト名の中から検索する一部文字列の入力テキストフィールドを有効化(入力可、内容読み取り可にする)。 */
+   textFieldGrp -e -enable true -editable true SubstituteBeforeTextField;
+   refresh;
+}
+
+/* ScriptのVersion情報を表示する確認ウィンドウを表示する関数 */
+global proc VersionInformation(){
+
+   /* Primitive作成の為のGUIウインドウ用の変数の宣言 */
+   /* この関数内で使うため、グローバル変数として宣言する。 */
+   global string $MainWindow = "";
+
+   /* ScriptのVersion情報を表示する確認ウィンドウを表示する。 */
+   confirmDialog -title "About Rename Object" -message ("Version: Rename Object v1.0.0" + "\n" + "Created by KohFlag.") -button "OK" -defaultButton "OK" -cancelButton "OK" -dismissString "OK" -parent ($MainWindow) -icon information;
+   
+   /* Script EditorにVersion情報を表示 */
+   print("\n" + "// About Rename Object //" + "\n" + "Version: Rename Object v1.0.0" + "\n" + "Created by KohFlag.");
+   
+}
+
+/* オブジェクト名変更スクリプトの為のGUIウインドウ作成用の変数 */
+global string $MainWindow = "";
+
+/* これから作成するウインドウと同じ名前のウィンドウが無いかチェックし、ある場合はそのウィンドウを閉じる。 */
+/* 同じ内容のウインドウを2つ以上開かない様にする為の措置。 */
+if(`window -q -exists RenameObject`){
+   deleteUI RenameObject;
+}
+
+$MainWindow = `window -title "Rename Object" -width 500 -sizeable true -titleBarMenu true -menuBar true RenameObject`;
+
+/* メニューバーのメニューを設定。 */
+menu -label "Edit" -tearOff true;
+   menuItem -label "Clear Result of rename by string delete" -command "scrollField -edit -clear DeleteResultScrollField";
+   menuItem -label "Clear Result of rename by string substitute" -command "scrollField -edit -clear SubstituteResultScrollField";
+menu -label "Information" -tearOff true;
+   menuItem -label "About Rename Object" -command "VersionInformation()";
+
+/* GUIウィンドウの中にフォームレイアウトを作成 */
+global string $form ="";
+$form = `formLayout -width 500`;
+
+/* ウィンドウを閉じるボタンを作成 */
+global string $closeButton ="";
+$closeButton = `button -label "Close window" -command ("deleteUI " + $MainWindow)`;
+
+/* タブを作成 */
+global string $tabs ="";
+$tabs = `tabLayout -innerMarginWidth 10
+                          -innerMarginHeight 10`;
+
+/* フォームレイアウトの中にタブと閉じるボタンを配置 */                          
+formLayout -edit
+    /* タブの配置を指定 */
+    /* タブの下に閉じるボタンが配置される様にする */
+    -attachForm $tabs "top"    0
+    -attachForm $tabs "left"   0
+    -attachControl $tabs "bottom" 0 $closeButton
+    -attachForm $tabs "right"  0
+    
+    /* 閉じるボタンの配置を指定 */
+    /* 今回はタブの下に配置する様にするので、topの項目は指定しない */
+    -attachNone $closeButton "top"    
+    -attachForm $closeButton "left"   0
+    -attachForm $closeButton "bottom" 0
+    -attachForm $closeButton "right"  0
+    
+    $form;
+
+/* オブジェクト名から一部文字列を削除する処理実行用のタブ設定 */
+global string $tab1 = "";
+global string $pane1 = "";
+$tab1 = `columnLayout -columnWidth 500 -columnAttach "left" 0`;
+    $pane1 = `paneLayout -configuration "horizontal3" -width 493`;
+   
+      /* 削除用の設定部分を配置 */
+      frameLayout -label "Setting of rename by string delete" -borderVisible false -marginWidth 2 -marginHeight 2;
+         columnLayout -columnAttach "left" 0;
+            /* テキストフィールドボタンの配置。 */
+            /* ※最後のDeleteTextFieldはテキストフィールドの識別名。後に関数内でテキストフィールドの値を読み込む際に利用する。 */
+            textFieldGrp -label "Search string: " -text "Please enter a search string." -enable true -editable true -annotation ("※ Precautions for enter string\n" + 
+            "1. String must not be null (not being also entered character).\n" + 
+            "2. The beginning of the string is valid only alphabetic character.\n" + 
+            "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore.") DeleteTextField;
+         setParent ..; /* colunmLayout用 */
+      setParent ..; /* frameLayout用 */
+    
+      /* オブジェクト名変更ボタンを配置。ボタンを押すと関数を呼び出して計算処理実行。 */
+      button -label "Rename by string delete" -command "DeleteObjName()";
+    
+      /* 処理結果表示のScrollFieldを、フレームレイアウト内に作成 */
+      frameLayout -label "Result of rename by string delete" -borderVisible false;
+         scrollField -height 200 -wordWrap true -text "// Rename object by press the \"Rename by string delete\" button, please. //\n" -editable false DeleteResultScrollField;
+      setParent ..; /* frameLayout用 */
+
+    setParent ..; /* paneLayout用 */    
+setParent ..; /* columnLayout用 */
+
+/* オブジェクトの名変更処理実行用のタブ設定 */
+global string $tab2 = "";
+global string $pane2 = "";
+$tab2 = `columnLayout -columnWidth 500 -columnAttach "left" 0`;
+    $pane2 = `paneLayout -configuration "horizontal3" -width 493`;
+
+      /* 削除用の設定部分を配置 */
+      frameLayout -label "Setting of rename by string substitute" -borderVisible false -marginWidth 2 -marginHeight 2;
+         columnLayout -columnAttach "left" 0;
+            /* ラジオボタンのセットを作成。 */
+            /* ラジオボタン用の変数は、後でオブジェクト名変更用関数でも使うので、グローバル変数で宣言しておく。 */
+            global string $radioBtnGrp1 = "";
+            $radioBtnGrp1 = `radioButtonGrp -numberOfRadioButtons 2 -label "Target string: " -labelArray2 "Whole" "Part" -select 1 -onCommand1 "TextFieldInvalid()" -onCommand2 "TextFieldValid()"`;
+        
+            /* 変更対象の文字列を入力するテキストフィールドの配置。 */
+            textFieldGrp -label "Search string: " -text "Please enter a search string." -enable false -editable false -annotation ("※ Precautions for enter string\n" + 
+            "1. String must not be null (not being also entered character).\n" + 
+            "2. The beginning of the string is valid only alphabetic character.\n" + 
+            "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore.") SubstituteBeforeTextField;
+         
+            /* 変更希望するの文字列を入力するテキストフィールドの配置。 */
+            /* ここでは、変更実行ボタンも一緒に配置 */
+            textFieldGrp -label "Substitutes string: " -text "Please enter a substitutes string." -enable true -editable true -annotation ("※ Precautions for enter string\n" + 
+            "1. String must not be null (not being also entered character).\n" + 
+            "2. The beginning of the string is valid only alphabetic character.\n" + 
+            "3. Other than the beginning of the string is valid only alphabetic character, numeral, and underscore.") SubstituteAfterTextField;
+         setParent ..; /* colunmLayout用 */
+      setParent ..; /* frameLayout用 */
+   
+      /* オブジェクト名変更ボタンを配置。ボタンを押すと関数を呼び出して計算処理実行。 */
+      button -label "Rename by string substitute" -command "SubstituteObjName()";
+   
+      /* 処理結果表示のScrollFieldを、フレームレイアウト内に作成 */
+      frameLayout -label "Result of rename by string substitute" -borderVisible false;
+         scrollField -height 200 -wordWrap true -text "// Rename object by press the \"Rename by string substitute\" button, please. //\n" -editable false SubstituteResultScrollField;
+      setParent ..; /* frameLayout用 */
+   
+    setParent ..; /* paneLayout用 */
+setParent ..; /* columnLayout用 */
+
+tabLayout -edit -tabLabel $tab1 "Rename by string delete"
+                -tabLabel $tab2 "Rename by string substitute" $tabs;
+setParent ..; /* $selPtabs用 */
+                
+/* GUIウィンドウの表示 */
+/* showWidowの後にスペースを1回空けて、ウィンドウ名とセミコロンを記述 */
+/* ウィンドウ名は、今回は変数に代入しているので、変数名で記載。 */
+/* ウィンドウ名の記載は必ず行う事。記載を忘れると、後でrefreshコマンド(ウィンドウ再描画命令)を実行した時に、再描画が上手くいかない。 */
+showWindow $MainWindow;
