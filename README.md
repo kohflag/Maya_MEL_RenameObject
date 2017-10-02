@@ -32,9 +32,7 @@ https://knowledge.autodesk.com/ja/support/maya/learn-explore/caas/CloudHelp/clou
 [2-4] 読み込むMelスクリプトファイルの選択画面になるので、1で配置したMelスクリプトを選んで読み込みます。
 ※[2-3]と[2-4]を行わずに、Melスクリプトファイルをスクリプトエディタ内の入力欄にドラッグドロップしてもOKです。
 
-[2-5] 読み込まれたスクリプトが表示されている入力欄内で、Ctrl ＋ Enterキーを押す。これで実行されます。
-
-
+[2-5] 読み込まれたスクリプトが表示されている入力欄内で、Ctrl ＋ Enterキーを押す。これで実行されます。  
 
 3. スクリプトのWindow内の各項目について
 [3-1] Rename Object
