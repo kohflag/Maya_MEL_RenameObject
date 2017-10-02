@@ -1,6 +1,6 @@
 # Rename Object for Maya MEL
 
-## 概要
+## 1. 概要
 Autodesk Maya用のMelスクリプトです。
 任意で選択した1個もしくは複数(2個以上)のオブジェクトの名前を一度に変更できます。
 名前変更の方法は次の①、②の内いずれかを選択できる様になっております。
@@ -21,7 +21,7 @@ https://knowledge.autodesk.com/ja/support/maya/learn-explore/caas/CloudHelp/clou
 
 
 
-2. Melスクリプトの実行方法
+## Melスクリプトの実行方法
 
 [2-1] Melスクリプトファイルを、お好みの適当なディレクトリ下に配置します。
  
