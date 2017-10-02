@@ -15,9 +15,6 @@ B. オブジェクト名の文字列の中の一部の文字列もしくは全�
 動作確認済みのMaya : Maya2013, Maya2014, Maya2015, Maya2016, Maya2017  
 文字コード : Shift_JIS  
 ※文字コードにShift_JISを利用しているのは、スクリプト実行時の日本語の文字化け防止の為になります。下記の公式サイトの記載に沿いました。  
-[◆日本語または簡体字中国語のテキストを含んだ Maya ファイルを用意する]: 
-https://knowledge.autodesk.com/ja/support/maya/learn-explore/caas/CloudHelp/cloudhelp/2016/JPN/Maya/files/GUID-88109151-076A-4AB1-836A-85370B32A256-htm.html 
-"Autodesk"  
 
 [◆日本語または簡体字中国語のテキストを含んだ Maya ファイルを用意する]: 
 https://knowledge.autodesk.com/ja/support/maya/learn-explore/caas/CloudHelp/cloudhelp/2016/JPN/Maya/files/GUID-88109151-076A-4AB1-836A-85370B32A256-htm.html 
