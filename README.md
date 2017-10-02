@@ -34,6 +34,8 @@ https://knowledge.autodesk.com/ja/support/maya/learn-explore/caas/CloudHelp/clou
 
 [2-5] 読み込まれたスクリプトが表示されている入力欄内で、Ctrl ＋ Enterキーを押す。これで実行されます。  
 
+
+
 3. スクリプトのWindow内の各項目について
 [3-1] Rename Object
 Windowのタイトル（このMelスクリプトの名前を意味します）を表示しています。
